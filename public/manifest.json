@@ -1,0 +1,24 @@
+{
+  "manifest_version": 3,
+  "name": "Feeless Vault",
+  "version": "1.0.0",
+  "description": "The official wallet for the Feeless network, with support for token minting, and token managment.",
+  "action": {
+    "default_icon": "logo.png",
+    "default_title": "Open My Wallet"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "permissions": [
+    "tabs"
+  ],
+  "host_permissions": [
+    "*"
+  ],
+  "icons": {
+    "16": "logo.png",
+    "48": "logo.png",
+    "128": "logo.png"
+  }
+}
