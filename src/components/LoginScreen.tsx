@@ -148,14 +148,6 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
 
           <Button
             variant="contained"
-            onClick={handleGenerateWallet}
-            ref={popperAnchorRef}
-            sx={{ fontWeight: 600, borderRadius: 2 }}
-          >
-            Generate New Wallet
-          </Button>
-          <Button
-            variant="contained"
             onClick={handleLogin}
             disabled={!privateKey || !wsNode || !httpNode || loading}
           >
@@ -176,6 +168,17 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
             {error}
           </Alert>
         )}
+      </Paper>
+      <Paper sx={{ p: 3, mt: 2, display: "flex", flexDirection: "column", alignItems: "center" }}>
+        <Typography sx={{ mb: 2 }}>Don't have a private key yet?</Typography>
+        <Button
+          variant="contained"
+          onClick={handleGenerateWallet}
+          ref={popperAnchorRef}
+          sx={{ fontWeight: 600, borderRadius: 2 }}
+        >
+          Generate New Wallet
+        </Button>
       </Paper>
     </Box>
   );

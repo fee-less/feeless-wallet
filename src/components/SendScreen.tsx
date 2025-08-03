@@ -17,12 +17,18 @@ import {
   Tooltip,
   Dialog,
   DialogContent,
-  DialogTitle
+  DialogTitle,
+  Switch
 } from '@mui/material';
+import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
+import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
+import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
+import InfoIcon from "@mui/icons-material/Info";
 import { FeelessClient, fPointsToFLSS, FLSStoFPoints } from 'feeless-utils';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import QrCodeScannerIcon from '@mui/icons-material/QrCodeScanner';
 import { Html5QrcodeScanner, Html5QrcodeSupportedFormats, Html5QrcodeScanType } from 'html5-qrcode';
+import dayjs from "dayjs";
 
 interface SendScreenProps {
   client: FeelessClient;
@@ -51,6 +57,8 @@ export function SendScreen({ client, onBack, initialToken }: SendScreenProps) {
   const [receiver, setReceiver] = useState('');
   const [amount, setAmount] = useState('');
   const [token, setToken] = useState(initialToken || 'Native FLSS');
+  const [unlock, setUnlock] = useState(Date.now());
+  const [useUnlock, setUseUnlock] = useState(false);
   const [percentage, setPercentage] = useState<number>(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -198,7 +206,7 @@ export function SendScreen({ client, onBack, initialToken }: SendScreenProps) {
       setLoading(true);
       setError(null);
       
-      const success = await client.placeTX(receiver, Number(amountInPoints), token === "Native FLSS" ? undefined : token);
+      const success = await client.placeTX(receiver, Number(amountInPoints), token === "Native FLSS" ? undefined : token, useUnlock ? unlock : undefined);
       
       if (success) {
         setAmount('');
@@ -291,48 +299,50 @@ export function SendScreen({ client, onBack, initialToken }: SendScreenProps) {
   );
 
   return (
-    <Box sx={{ 
-      maxWidth: 600, 
-      mx: 'auto', 
-      mt: { xs: 0, sm: 4 }, 
-      px: { xs: 1, sm: 2 },
-      minHeight: '100vh',
-      bgcolor: 'background.default'
-    }}>
-      <Paper 
-        elevation={0} 
-        sx={{ 
+    <Box
+      sx={{
+        maxWidth: 600,
+        mx: "auto",
+        mt: { xs: 0, sm: 4 },
+        px: { xs: 1, sm: 2 },
+        minHeight: "100vh",
+        bgcolor: "background.default",
+      }}
+    >
+      <Paper
+        elevation={0}
+        sx={{
           p: { xs: 2, sm: 3 },
           borderRadius: { xs: 0, sm: 2 },
-          minHeight: '100vh',
-          bgcolor: 'background.default'
+          minHeight: "100vh",
+          bgcolor: "background.default",
         }}
       >
         <Box sx={{ mb: 3 }}>
           <Button
             startIcon={<ArrowBackIcon />}
             onClick={onBack}
-            sx={{ 
+            sx={{
               mb: 2,
-              textTransform: 'none',
-              fontWeight: 'bold'
+              textTransform: "none",
+              fontWeight: "bold",
             }}
           >
             Back
           </Button>
-          <Typography 
-            variant="h5" 
-            gutterBottom 
-            sx={{ 
-              fontWeight: 'bold',
-              textAlign: 'center'
+          <Typography
+            variant="h5"
+            gutterBottom
+            sx={{
+              fontWeight: "bold",
+              textAlign: "center",
             }}
           >
             Send
           </Typography>
         </Box>
 
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
           <FormControl fullWidth>
             <InputLabel>Token</InputLabel>
             <Select
@@ -343,17 +353,16 @@ export function SendScreen({ client, onBack, initialToken }: SendScreenProps) {
             >
               <MenuItem value="Native FLSS">Native FLSS</MenuItem>
               {availableTokens.map((t) => (
-                <MenuItem key={t} value={t}>{t}</MenuItem>
+                <MenuItem key={t} value={t}>
+                  {t}
+                </MenuItem>
               ))}
             </Select>
           </FormControl>
 
           <Box>
-            <Typography 
-              gutterBottom
-              sx={{ fontWeight: 'medium' }}
-            >
-              Amount ({token || 'FLSS'})
+            <Typography gutterBottom sx={{ fontWeight: "medium" }}>
+              Amount ({token || "FLSS"})
             </Typography>
             <TextField
               value={amount}
@@ -361,8 +370,12 @@ export function SendScreen({ client, onBack, initialToken }: SendScreenProps) {
               type="number"
               fullWidth
               InputProps={{
-                endAdornment: <InputAdornment position="end">{token || 'FLSS'}</InputAdornment>,
-                sx: { borderRadius: 2 }
+                endAdornment: (
+                  <InputAdornment position="end">
+                    {token || "FLSS"}
+                  </InputAdornment>
+                ),
+                sx: { borderRadius: 2 },
               }}
             />
             <Box sx={{ mt: 2, px: 1 }}>
@@ -372,11 +385,11 @@ export function SendScreen({ client, onBack, initialToken }: SendScreenProps) {
                 valueLabelDisplay="auto"
                 valueLabelFormat={(value) => `${value}%`}
                 marks={[
-                  { value: 0, label: '0%' },
-                  { value: 25, label: '25%' },
-                  { value: 50, label: '50%' },
-                  { value: 75, label: '75%' },
-                  { value: 100, label: '100%' },
+                  { value: 0, label: "0%" },
+                  { value: 25, label: "25%" },
+                  { value: 50, label: "50%" },
+                  { value: 75, label: "75%" },
+                  { value: 100, label: "100%" },
                 ]}
               />
             </Box>
@@ -384,32 +397,29 @@ export function SendScreen({ client, onBack, initialToken }: SendScreenProps) {
           </Box>
 
           <Box>
-            <Typography 
-              gutterBottom
-              sx={{ fontWeight: 'medium' }}
-            >
+            <Typography gutterBottom sx={{ fontWeight: "medium" }}>
               Receiver Address
             </Typography>
-            <Box sx={{ display: 'flex', gap: 1 }}>
+            <Box sx={{ display: "flex", gap: 1 }}>
               <TextField
                 value={receiver}
                 onChange={(e) => setReceiver(e.target.value)}
                 fullWidth
                 placeholder="Enter or scan address"
                 InputProps={{
-                  sx: { borderRadius: 2 }
+                  sx: { borderRadius: 2 },
                 }}
               />
               <Tooltip title="Scan QR Code">
                 <IconButton
                   onClick={() => setShowScanner(true)}
-                  sx={{ 
-                    bgcolor: 'action.hover',
-                    '&:hover': { bgcolor: 'action.selected' },
-                    height: '56px',
-                    width: '56px',
+                  sx={{
+                    bgcolor: "action.hover",
+                    "&:hover": { bgcolor: "action.selected" },
+                    height: "56px",
+                    width: "56px",
                     borderRadius: 2,
-                    flexShrink: 0
+                    flexShrink: 0,
                   }}
                 >
                   <QrCodeScannerIcon />
@@ -418,30 +428,65 @@ export function SendScreen({ client, onBack, initialToken }: SendScreenProps) {
             </Box>
           </Box>
 
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+            }}
+          >
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+              <Typography>Lock transaction</Typography>
+              <Tooltip title="If enabled, the receiver will only receive the funds once a set date passes. During this time no one can access these funds, making them locked.">
+                <IconButton size="small">
+                  <InfoIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            </Box>
+            <Switch
+              value={useUnlock}
+              onChange={(e) => setUseUnlock(e.target.checked)}
+            />
+          </Box>
+
+          {useUnlock && (
+            <LocalizationProvider dateAdapter={AdapterDayjs}>
+              <DateTimePicker
+                label="Unlock funds at:"
+                value={dayjs(unlock)}
+                onChange={(newValue) => {
+                  if (newValue) {
+                    setUnlock(newValue.valueOf()); // convert to timestamp
+                  }
+                }}
+              />
+            </LocalizationProvider>
+          )}
+
           <Button
             variant="contained"
             onClick={handleSend}
             disabled={!receiver || !amount || loading}
             fullWidth
-            sx={{ 
+            sx={{
               mt: 2,
               borderRadius: 2,
-              textTransform: 'none',
-              fontWeight: 'bold',
-              py: 1.5
+              textTransform: "none",
+              fontWeight: "bold",
+              py: 1.5,
             }}
           >
-            {loading ? <CircularProgress size={24} /> : 'Send'}
+            {loading ? <CircularProgress size={24} /> : "Send"}
           </Button>
         </Box>
 
         {error && (
-          <Alert 
-            severity="error" 
-            sx={{ 
+          <Alert
+            severity="error"
+            sx={{
               mt: 2,
               borderRadius: 2,
-              '& .MuiAlert-icon': { alignItems: 'center' }
+              "& .MuiAlert-icon": { alignItems: "center" },
             }}
           >
             {error}
@@ -449,48 +494,48 @@ export function SendScreen({ client, onBack, initialToken }: SendScreenProps) {
         )}
       </Paper>
 
-      <Dialog 
-        open={showScanner} 
+      <Dialog
+        open={showScanner}
         onClose={handleScannerClose}
         maxWidth="xs"
         fullWidth
         disableEnforceFocus
       >
-        <DialogTitle sx={{ textAlign: 'center' }}>
-          Scan QR Code
-        </DialogTitle>
-        <DialogContent sx={{ textAlign: 'center', pb: 3 }}>
+        <DialogTitle sx={{ textAlign: "center" }}>Scan QR Code</DialogTitle>
+        <DialogContent sx={{ textAlign: "center", pb: 3 }}>
           {scannerError ? (
-            <Alert 
-              severity="error" 
-              sx={{ 
+            <Alert
+              severity="error"
+              sx={{
                 mb: 2,
                 borderRadius: 2,
-                '& .MuiAlert-icon': { alignItems: 'center' }
+                "& .MuiAlert-icon": { alignItems: "center" },
               }}
             >
               {scannerError}
             </Alert>
           ) : (
-            <Box sx={{ 
-              width: '100%',
-              maxWidth: 300,
-              mx: 'auto',
-              mb: 2,
-              '& #qr-reader': {
-                width: '100% !important',
-                '& video': {
-                  borderRadius: 8
-                }
-              }
-            }}>
+            <Box
+              sx={{
+                width: "100%",
+                maxWidth: 300,
+                mx: "auto",
+                mb: 2,
+                "& #qr-reader": {
+                  width: "100% !important",
+                  "& video": {
+                    borderRadius: 8,
+                  },
+                },
+              }}
+            >
               <div id="qr-reader" />
             </Box>
           )}
           <Typography variant="body2" color="text.secondary">
-            {scannerError 
-              ? 'Please fix the error above to scan QR codes' 
-              : 'Position the QR code within the frame to scan'}
+            {scannerError
+              ? "Please fix the error above to scan QR codes"
+              : "Position the QR code within the frame to scan"}
           </Typography>
         </DialogContent>
       </Dialog>

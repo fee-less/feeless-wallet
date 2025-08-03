@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Box,
   Typography,
@@ -40,6 +40,7 @@ interface TokenBalance {
   token: string;
   balance: number;
   unconfirmedBalance?: number;
+  locked: number;
 }
 
 interface Transaction {
@@ -75,6 +76,7 @@ export function HomeScreen({ client, onNavigate }: HomeScreenProps) {
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [nativeBalance, setNativeBalance] = useState<number>(0);
   const [nativeUnconfirmedBalance, setNativeUnconfirmedBalance] = useState<number | undefined>();
+  const [nativeLocked, setNativeLocked] = useState<number>(0);
   const [tokenBalances, setTokenBalances] = useState<TokenBalance[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -86,6 +88,8 @@ export function HomeScreen({ client, onNavigate }: HomeScreenProps) {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [showHistory, setShowHistory] = useState(false);
   const [portfolioValue, setPortfolioValue] = useState<number>(0);
+  // Add for pagination
+  const [txDisplayCount, setTxDisplayCount] = useState(100);
 
   const loadBalances = async (showRefreshing = false) => {
     try {
@@ -105,6 +109,8 @@ export function HomeScreen({ client, onNavigate }: HomeScreenProps) {
 
       const confirmedBalance = await client.pollBalance();
       setNativeUnconfirmedBalance(confirmedBalance !== balanceWithMempool ? confirmedBalance : undefined);
+      
+      setNativeLocked(await client.pollLocked());
 
       // Load token balances
       const tokens = await client.getTokens();
@@ -114,15 +120,17 @@ export function HomeScreen({ client, onNavigate }: HomeScreenProps) {
           const balanceWithMempool = await client.pollBalance(token, true);
           // Get confirmed balance for reference
           const confirmedBalance = await client.pollBalance(token);
+
+          const locked = await client.pollLocked(token);
           // Multiply by 1000 to store with 3 decimal places
           return {
             token,
             balance: balanceWithMempool * 1000,
-            unconfirmedBalance: confirmedBalance !== balanceWithMempool ? confirmedBalance * 1000 : undefined
+            unconfirmedBalance: confirmedBalance !== balanceWithMempool ? confirmedBalance * 1000 : undefined,
+            locked: locked * 1000
           };
         })
       );
-
       setTokenBalances(tokenBalances);
 
       // Also refresh transaction history when refreshing balances
@@ -140,11 +148,19 @@ export function HomeScreen({ client, onNavigate }: HomeScreenProps) {
   const loadTransactions = async () => {
     try {
       const transactions = await client.getHistory();
+      // Sort by timestamp descending
+      transactions.sort((a, b) => b.timestamp - a.timestamp);
       setTransactions(transactions);
     } catch (err) {
       console.error('Failed to load transactions:', err);
     }
   };
+
+  // Reset txDisplayCount when opening history
+  const handleOpenHistory = useCallback(() => {
+    setTxDisplayCount(100);
+    setShowHistory(true);
+  }, []);
 
   useEffect(() => {
     loadBalances();
@@ -247,153 +263,188 @@ export function HomeScreen({ client, onNavigate }: HomeScreenProps) {
   };
 
   return (
-    <Box sx={{ 
-      maxWidth: 800, 
-      mx: 'auto', 
-      mt: { xs: 0, sm: 4 }, 
-      px: { xs: 1, sm: 2 },
-      minHeight: '100vh',
-      bgcolor: 'background.default'
-    }}>
-      <Paper 
-        elevation={0} 
-        sx={{ 
+    <Box
+      sx={{
+        maxWidth: 800,
+        mx: "auto",
+        mt: { xs: 0, sm: 4 },
+        px: { xs: 1, sm: 2 },
+        minHeight: "100vh",
+        bgcolor: "background.default",
+      }}
+    >
+      <Paper
+        elevation={0}
+        sx={{
           p: { xs: 2, sm: 3 },
           borderRadius: { xs: 0, sm: 2 },
-          minHeight: '100vh',
-          bgcolor: 'background.default'
+          minHeight: "100vh",
+          bgcolor: "background.default",
         }}
       >
         <Stack spacing={3}>
-          <Box sx={{ 
-            display: 'flex', 
-            justifyContent: 'space-between', 
-            alignItems: 'center',
-            mb: 2
-          }}>
-            <Box sx={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
+          <Box
+            sx={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
               mb: 2,
-              gap: 2
-            }}>
-              <CardMedia component="img" image="logo.svg" alt="Logo" sx={{ height: 70, width: 'auto' }} />
+            }}
+          >
+            <Box
+              sx={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                mb: 2,
+                gap: 2,
+              }}
+            >
+              <CardMedia
+                component="img"
+                image="logo.svg"
+                alt="Logo"
+                sx={{ height: 70, width: "auto" }}
+              />
               <Box>
-                <Typography variant="h5" sx={{ fontWeight: 'bold' }}>
+                <Typography variant="h5" sx={{ fontWeight: "bold" }}>
                   Feeless Vault
                 </Typography>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
+                <Box
+                  sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 1,
+                    mt: 0.5,
+                  }}
+                >
                   <Chip
                     icon={<NetworkCheckIcon />}
-                    label={networkStatus === 'connected' ? 'Connected' : 'Disconnected'}
-                    color={networkStatus === 'connected' ? 'success' : 'error'}
+                    label={
+                      networkStatus === "connected"
+                        ? "Connected"
+                        : "Disconnected"
+                    }
+                    color={networkStatus === "connected" ? "success" : "error"}
                     size="small"
                     sx={{ height: 24 }}
                   />
                   <Typography variant="caption" color="text.secondary">
-                    v1.0.0
+                    v1.1.0
                   </Typography>
                 </Box>
               </Box>
             </Box>
-            
-            <Box sx={{ display: '>flex', gap: 1 }}>
+
+            <Box sx={{ display: ">flex", gap: 1 }}>
               <Tooltip title="Transaction History">
-                <IconButton 
-                  onClick={() => setShowHistory(true)}
-                  sx={{ 
-                    bgcolor: 'action.hover',
-                    '&:hover': { bgcolor: 'action.selected' }
+                <IconButton
+                  onClick={handleOpenHistory}
+                  sx={{
+                    bgcolor: "action.hover",
+                    "&:hover": { bgcolor: "action.selected" },
                   }}
                 >
-                  <Badge badgeContent={transactions.filter(t => t.status === 'pending').length} color="warning">
+                  <Badge
+                    badgeContent={
+                      transactions.filter((t) => t.status === "pending").length
+                    }
+                    color="warning"
+                  >
                     <HistoryIcon />
                   </Badge>
                 </IconButton>
               </Tooltip>
               <Tooltip title="Refresh Balances">
-                <IconButton 
+                <IconButton
                   onClick={() => loadBalances(true)}
                   disabled={refreshing}
-                  sx={{ 
-                    bgcolor: 'action.hover',
-                    '&:hover': { bgcolor: 'action.selected' }
+                  sx={{
+                    bgcolor: "action.hover",
+                    "&:hover": { bgcolor: "action.selected" },
                   }}
                 >
-                  {refreshing ? <CircularProgress size={24} /> : <RefreshIcon />}
+                  {refreshing ? (
+                    <CircularProgress size={24} />
+                  ) : (
+                    <RefreshIcon />
+                  )}
                 </IconButton>
               </Tooltip>
             </Box>
           </Box>
 
-          <Card 
+          <Card
             elevation={0}
-            sx={{ 
-              bgcolor: 'background.paper',
+            sx={{
+              bgcolor: "background.paper",
               borderRadius: 2,
-              border: '1px solid',
-              borderColor: 'divider',
-              position: 'relative',
-              overflow: 'visible'
+              border: "1px solid",
+              borderColor: "divider",
+              position: "relative",
+              overflow: "visible",
             }}
           >
-            <Box sx={{ 
-              position: 'absolute',
-              top: -12,
-              left: '50%',
-              transform: 'translateX(-50%)',
-              bgcolor: 'background.paper',
-              px: 2,
-              py: 0.5,
-              borderRadius: 1,
-              border: '1px solid',
-              borderColor: 'divider'
-            }}>
+            <Box
+              sx={{
+                position: "absolute",
+                top: -12,
+                left: "50%",
+                transform: "translateX(-50%)",
+                bgcolor: "background.paper",
+                px: 2,
+                py: 0.5,
+                borderRadius: 1,
+                border: "1px solid",
+                borderColor: "divider",
+              }}
+            >
               <Typography variant="caption" color="text.secondary">
                 FLSS Balance
               </Typography>
             </Box>
             <CardContent>
-              <Box sx={{ 
-                display: 'flex', 
-                alignItems: 'center', 
-                gap: 1,
-                bgcolor: 'action.hover',
-                p: 1,
-                borderRadius: 1,
-                mb: 2
-              }}>
-                <Typography 
-                  variant="body2" 
-                  sx={{ 
-                    wordBreak: 'break-all',
-                    fontFamily: 'monospace',
-                    fontSize: '0.875rem'
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 1,
+                  bgcolor: "action.hover",
+                  p: 1,
+                  borderRadius: 1,
+                  mb: 2,
+                }}
+              >
+                <Typography
+                  variant="body2"
+                  sx={{
+                    wordBreak: "break-all",
+                    fontFamily: "monospace",
+                    fontSize: "0.875rem",
                   }}
                 >
                   {publicAddress}
                 </Typography>
-                <Box sx={{ display: 'flex', gap: 0.5 }}>
+                <Box sx={{ display: "flex", gap: 0.5 }}>
                   <Tooltip title={copied ? "Copied!" : "Copy address"}>
-                    <IconButton 
-                      onClick={copyToClipboard} 
+                    <IconButton
+                      onClick={copyToClipboard}
                       size="small"
-                      sx={{ 
-                        bgcolor: 'background.paper',
-                        '&:hover': { bgcolor: 'action.selected' }
+                      sx={{
+                        bgcolor: "background.paper",
+                        "&:hover": { bgcolor: "action.selected" },
                       }}
                     >
                       {copied ? <CheckIcon /> : <ContentCopyIcon />}
                     </IconButton>
                   </Tooltip>
                   <Tooltip title="Show QR Code">
-                    <IconButton 
+                    <IconButton
                       size="small"
                       onClick={() => setShowQR(true)}
                       sx={{
-                        bgcolor: 'background.paper',
-                        '&:hover': { bgcolor: 'action.selected' }
+                        bgcolor: "background.paper",
+                        "&:hover": { bgcolor: "action.selected" },
                       }}
                     >
                       <QrCodeIcon />
@@ -403,14 +454,19 @@ export function HomeScreen({ client, onNavigate }: HomeScreenProps) {
               </Box>
 
               {loading ? (
-                <Box sx={{ display: 'flex', justifyContent: 'center', my: 4 }}>
+                <Box sx={{ display: "flex", justifyContent: "center", my: 4 }}>
                   <CircularProgress />
                 </Box>
               ) : (
-                <Box sx={{ textAlign: 'center' }}>
-                  <Typography variant="h3" sx={{ fontWeight: 'bold', mb: 1 }}>
+                <Box sx={{ textAlign: "center" }}>
+                  <Typography variant="h3" sx={{ fontWeight: "bold", mb: 1 }}>
                     {formatNumber(portfolioValue)} FLSS
                   </Typography>
+                  {nativeLocked !== 0 && (
+                    <Typography sx={{ mb: 1, color: "orange" }}>
+                      {formatNumber(nativeLocked)} FLSS (locked)
+                    </Typography>
+                  )}
                   <Typography variant="body2" color="text.secondary">
                     Native Balance
                   </Typography>
@@ -420,43 +476,45 @@ export function HomeScreen({ client, onNavigate }: HomeScreenProps) {
           </Card>
 
           {loading ? (
-            <Box sx={{ display: 'flex', justifyContent: 'center', my: 4 }}>
+            <Box sx={{ display: "flex", justifyContent: "center", my: 4 }}>
               <CircularProgress />
             </Box>
           ) : (
             <>
-              <Stack 
-                direction={{ xs: 'column', md: 'row' }} 
+              <Stack
+                direction={{ xs: "column", md: "row" }}
                 spacing={2}
-                sx={{ width: '100%' }}
+                sx={{ width: "100%" }}
               >
-                <Card 
+                <Card
                   elevation={0}
-                  sx={{ 
+                  sx={{
                     flex: 1,
-                    bgcolor: 'background.paper',
+                    bgcolor: "background.paper",
                     borderRadius: 2,
-                    border: '1px solid',
-                    borderColor: 'divider',
-                    position: 'relative',
-                    overflow: 'hidden'
+                    border: "1px solid",
+                    borderColor: "divider",
+                    position: "relative",
+                    overflow: "hidden",
                   }}
                 >
-                  <Box sx={{ 
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    height: 4,
-                    bgcolor: 'primary.main',
-                    opacity: 0.2
-                  }} />
+                  <Box
+                    sx={{
+                      position: "absolute",
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      height: 4,
+                      bgcolor: "primary.main",
+                      opacity: 0.2,
+                    }}
+                  />
                   <CardContent>
-                    <Typography 
-                      variant="h6" 
-                      gutterBottom 
+                    <Typography
+                      variant="h6"
+                      gutterBottom
                       align="center"
-                      sx={{ fontWeight: 'medium' }}
+                      sx={{ fontWeight: "medium" }}
                     >
                       Native Balance
                     </Typography>
@@ -467,11 +525,11 @@ export function HomeScreen({ client, onNavigate }: HomeScreenProps) {
                       variant="contained"
                       fullWidth
                       startIcon={<SendIcon />}
-                      onClick={() => onNavigate('send', 'Native FLSS')}
-                      sx={{ 
+                      onClick={() => onNavigate("send", "Native FLSS")}
+                      sx={{
                         borderRadius: 2,
-                        textTransform: 'none',
-                        fontWeight: 'bold'
+                        textTransform: "none",
+                        fontWeight: "bold",
                       }}
                     >
                       Send FLSS
@@ -479,22 +537,22 @@ export function HomeScreen({ client, onNavigate }: HomeScreenProps) {
                   </CardContent>
                 </Card>
 
-                <Card 
+                <Card
                   elevation={0}
-                  sx={{ 
+                  sx={{
                     flex: 1,
-                    bgcolor: 'background.paper',
+                    bgcolor: "background.paper",
                     borderRadius: 2,
-                    border: '1px solid',
-                    borderColor: 'divider'
+                    border: "1px solid",
+                    borderColor: "divider",
                   }}
                 >
                   <CardContent>
-                    <Typography 
-                      variant="h6" 
-                      gutterBottom 
+                    <Typography
+                      variant="h6"
+                      gutterBottom
                       align="center"
-                      sx={{ fontWeight: 'medium' }}
+                      sx={{ fontWeight: "medium" }}
                     >
                       Quick Actions
                     </Typography>
@@ -503,11 +561,11 @@ export function HomeScreen({ client, onNavigate }: HomeScreenProps) {
                         variant="contained"
                         fullWidth
                         startIcon={<SendIcon />}
-                        onClick={() => onNavigate('send')}
-                        sx={{ 
+                        onClick={() => onNavigate("send")}
+                        sx={{
                           borderRadius: 2,
-                          textTransform: 'none',
-                          fontWeight: 'bold'
+                          textTransform: "none",
+                          fontWeight: "bold",
                         }}
                       >
                         Send Tokens
@@ -516,11 +574,11 @@ export function HomeScreen({ client, onNavigate }: HomeScreenProps) {
                         variant="contained"
                         fullWidth
                         startIcon={<AddIcon />}
-                        onClick={() => onNavigate('mint')}
-                        sx={{ 
+                        onClick={() => onNavigate("mint")}
+                        sx={{
                           borderRadius: 2,
-                          textTransform: 'none',
-                          fontWeight: 'bold'
+                          textTransform: "none",
+                          fontWeight: "bold",
                         }}
                       >
                         Mint New Token
@@ -532,77 +590,85 @@ export function HomeScreen({ client, onNavigate }: HomeScreenProps) {
 
               {tokenBalances.length > 0 && (
                 <Box>
-                  <Typography 
-                    variant="h6" 
-                    gutterBottom 
-                    align="center" 
-                    sx={{ 
+                  <Typography
+                    variant="h6"
+                    gutterBottom
+                    align="center"
+                    sx={{
                       mb: 2,
-                      fontWeight: 'medium'
+                      fontWeight: "medium",
                     }}
                   >
                     Token Balances
                   </Typography>
-                  <Stack 
+                  <Stack
                     spacing={2}
-                    sx={{ 
-                      display: 'grid',
+                    sx={{
+                      display: "grid",
                       gridTemplateColumns: {
-                        xs: '1fr',
-                        sm: 'repeat(2, 1fr)',
-                        md: 'repeat(3, 1fr)'
+                        xs: "1fr",
+                        sm: "repeat(2, 1fr)",
+                        md: "repeat(3, 1fr)",
                       },
-                      gap: 2
+                      gap: 2,
                     }}
                   >
-                    {tokenBalances.map(({ token, balance, unconfirmedBalance }) => (
-                      <Card 
-                        key={token}
-                        elevation={0}
-                        sx={{ 
-                          bgcolor: 'background.paper',
-                          borderRadius: 2,
-                          border: '1px solid',
-                          borderColor: 'divider',
-                          position: 'relative',
-                          overflow: 'hidden'
-                        }}
-                      >
-                        <Box sx={{ 
-                          position: 'absolute',
-                          top: 0,
-                          left: 0,
-                          right: 0,
-                          height: 4,
-                          bgcolor: 'secondary.main',
-                          opacity: 0.2
-                        }} />
-                        <CardContent>
-                          <Typography 
-                            variant="subtitle1" 
-                            sx={{ fontWeight: 'medium', mb: 1 }}
-                          >
-                            {token}
-                          </Typography>
-                          <Box sx={{ mb: 2 }}>
-                            {renderBalance(balance, unconfirmedBalance, true)}
-                          </Box>
-                          <Button
-                            variant="outlined"
-                            fullWidth
-                            startIcon={<SendIcon />}
-                            onClick={() => onNavigate('send', token)}
-                            sx={{ 
-                              borderRadius: 2,
-                              textTransform: 'none',
-                              fontWeight: 'bold'
+                    {tokenBalances.map(
+                      ({ token, balance, unconfirmedBalance, locked }) => (
+                        <Card
+                          key={token}
+                          elevation={0}
+                          sx={{
+                            bgcolor: "background.paper",
+                            borderRadius: 2,
+                            border: "1px solid",
+                            borderColor: "divider",
+                            position: "relative",
+                            overflow: "hidden",
+                          }}
+                        >
+                          <Box
+                            sx={{
+                              position: "absolute",
+                              top: 0,
+                              left: 0,
+                              right: 0,
+                              height: 4,
+                              bgcolor: "secondary.main",
+                              opacity: 0.2,
                             }}
-                          >
-                            Send
-                          </Button>
-                        </CardContent>
-                      </Card>
-                    ))}
+                          />
+                          <CardContent>
+                            <Typography
+                              variant="subtitle1"
+                              sx={{ fontWeight: "medium", mb: 1 }}
+                            >
+                              {token}
+                            </Typography>
+                            <Box>
+                              {renderBalance(balance, unconfirmedBalance, true)}
+                            </Box>
+                            {locked !== 0 && (
+                              <Typography sx={{ color: "orange", textAlign: "center" }}>{formatNumber(locked, true)} (locked)</Typography>
+                            )}
+                            <Button
+                              variant="outlined"
+                              fullWidth
+                              startIcon={<SendIcon />}
+                              onClick={() => onNavigate("send", token)}
+                              sx={{
+                                borderRadius: 2,
+                                textTransform: "none",
+                                fontWeight: "bold",
+                                mt: 2
+                              }}
+                            >
+                              Send
+                            </Button>
+                          </CardContent>
+                        </Card>
+                      )
+                    )}
                   </Stack>
                 </Box>
               )}
@@ -610,11 +676,11 @@ export function HomeScreen({ client, onNavigate }: HomeScreenProps) {
           )}
 
           {error && (
-            <Alert 
+            <Alert
               severity="error"
-              sx={{ 
+              sx={{
                 borderRadius: 2,
-                '& .MuiAlert-icon': { alignItems: 'center' }
+                "& .MuiAlert-icon": { alignItems: "center" },
               }}
             >
               {error}
@@ -623,28 +689,24 @@ export function HomeScreen({ client, onNavigate }: HomeScreenProps) {
         </Stack>
       </Paper>
 
-      <Dialog 
-        open={showQR} 
+      <Dialog
+        open={showQR}
         onClose={() => setShowQR(false)}
         maxWidth="xs"
         fullWidth
       >
-        <DialogTitle sx={{ textAlign: 'center' }}>
-          Scan to Receive
-        </DialogTitle>
-        <DialogContent sx={{ textAlign: 'center', pb: 3 }}>
-          <Box sx={{ 
-            display: 'flex', 
-            justifyContent: 'center',
-            p: 1,
-            borderRadius: 1,
-            mb: 1
-          }}>
-            <CompactQRCode
-              value={publicAddress}
-              size={120}
-              margin={0}
-            />
+        <DialogTitle sx={{ textAlign: "center" }}>Scan to Receive</DialogTitle>
+        <DialogContent sx={{ textAlign: "center", pb: 3 }}>
+          <Box
+            sx={{
+              display: "flex",
+              justifyContent: "center",
+              p: 1,
+              borderRadius: 1,
+              mb: 1,
+            }}
+          >
+            <CompactQRCode value={publicAddress} size={120} margin={0} />
           </Box>
           <Typography variant="body2" color="text.secondary">
             Scan this code to receive FLSS or tokens
@@ -658,67 +720,105 @@ export function HomeScreen({ client, onNavigate }: HomeScreenProps) {
         maxWidth="sm"
         fullWidth
       >
-        <DialogTitle sx={{ textAlign: 'center' }}>
+        <DialogTitle sx={{ textAlign: "center" }}>
           Transaction History
         </DialogTitle>
         <DialogContent sx={{ pb: 3 }}>
           <Stack spacing={2}>
-            {transactions.map((tx, index) => (
+            {transactions.slice(0, txDisplayCount).map((tx, index) => (
               <Card
                 key={index}
                 elevation={0}
                 sx={{
-                  bgcolor: 'background.paper',
+                  bgcolor: "background.paper",
                   borderRadius: 2,
-                  border: '1px solid',
-                  borderColor: 'divider'
+                  border: "1px solid",
+                  borderColor: "divider",
                 }}
               >
                 <CardContent>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                    <Box sx={{ 
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      width: 32,
-                      height: 32,
-                      borderRadius: '50%',
-                      bgcolor: tx.type === 'receive' ? 'success.light' : 
-                               tx.type === 'mint' ? 'info.light' : 'primary.light',
-                      color: tx.type === 'receive' ? 'success.dark' : 
-                             tx.type === 'mint' ? 'info.dark' : 'primary.dark'
-                    }}>
+                  <Box
+                    sx={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 1,
+                      mb: 1,
+                    }}
+                  >
+                    <Box
+                      sx={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        width: 32,
+                        height: 32,
+                        borderRadius: "50%",
+                        bgcolor:
+                          tx.type === "receive"
+                            ? "success.light"
+                            : tx.type === "mint"
+                            ? "info.light"
+                            : "primary.light",
+                        color:
+                          tx.type === "receive"
+                            ? "success.dark"
+                            : tx.type === "mint"
+                            ? "info.dark"
+                            : "primary.dark",
+                      }}
+                    >
                       {getTransactionIcon(tx.type)}
                     </Box>
                     <Box sx={{ flex: 1 }}>
-                      <Typography variant="subtitle2" sx={{ fontWeight: 'medium' }}>
-                        {getTransactionTypeLabel(tx.type)} {tx.token || 'FLSS'}
+                      <Typography
+                        variant="subtitle2"
+                        sx={{ fontWeight: "medium" }}
+                      >
+                        {getTransactionTypeLabel(tx.type)} {tx.token || "FLSS"}
                       </Typography>
                       <Typography variant="caption" color="text.secondary">
                         {formatTimestamp(tx.timestamp)}
-                        {tx.blockHeight !== undefined && ` • Block #${tx.blockHeight}`}
+                        {tx.blockHeight !== undefined &&
+                          ` • Block #${tx.blockHeight}`}
                       </Typography>
                     </Box>
                     <Chip
                       label={tx.status}
-                      color={tx.status === 'confirmed' ? 'success' : 'warning'}
+                      color={tx.status === "confirmed" ? "success" : "warning"}
                       size="small"
                     />
                   </Box>
-                  <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
-                    {formatNumber(tx.amount, !!tx.token)} {tx.token || 'FLSS'}
+                  <Typography variant="h6" sx={{ fontWeight: "bold" }}>
+                  {formatNumber(tx.token ? tx.amount * 1000 : tx.amount, !!tx.token)} {tx.token || "FLSS"}
                   </Typography>
-                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
-                    {tx.type === 'receive' ? 'From: ' : 'To: '}{tx.address}
+                  <Typography
+                    variant="caption"
+                    color="text.secondary"
+                    sx={{ display: "block", mt: 1 }}
+                  >
+                    {tx.type === "receive" ? "From: " : "To: "}
+                    {tx.address}
                   </Typography>
                 </CardContent>
               </Card>
             ))}
             {transactions.length === 0 && (
-              <Box sx={{ textAlign: 'center', py: 4 }}>
+              <Box sx={{ textAlign: "center", py: 4 }}>
                 <Typography color="text.secondary">
                   No transactions yet
                 </Typography>
+              </Box>
+            )}
+            {/* Load More button */}
+            {transactions.length > txDisplayCount && (
+              <Box sx={{ textAlign: "center", mt: 2 }}>
+                <Button
+                  variant="outlined"
+                  onClick={() => setTxDisplayCount((c) => c + 100)}
+                  sx={{ borderRadius: 2, fontWeight: "bold" }}
+                >
+                  Load More
+                </Button>
               </Box>
             )}
           </Stack>

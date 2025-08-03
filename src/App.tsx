@@ -5,6 +5,7 @@ import { LoginScreen } from './components/LoginScreen';
 import { HomeScreen } from './components/HomeScreen';
 import { SendScreen } from './components/SendScreen';
 import { MintScreen } from './components/MintScreen';
+import { WalletActionModalProvider } from './components/WalletActionModalContext';
 
 type Screen = 'login' | 'home' | 'send' | 'mint';
 
@@ -29,32 +30,34 @@ function App() {
   };
 
   return (
-    <Container>
-      <Box sx={{ my: 4 }}>
-        {screen === 'login' && (
-          <LoginScreen onLogin={handleLogin} />
-        )}
-        {screen === 'home' && client && (
-          <HomeScreen
-            client={client}
-            onNavigate={handleNavigate}
-          />
-        )}
-        {screen === 'send' && client && (
-          <SendScreen
-            client={client}
-            onBack={() => setScreen('home')}
-            initialToken={initialToken}
-          />
-        )}
-        {screen === 'mint' && client && (
-          <MintScreen
-            client={client}
-            onBack={() => setScreen('home')}
-          />
-        )}
-      </Box>
-    </Container>
+    <WalletActionModalProvider client={client}>
+      <Container>
+        <Box sx={{ my: 4 }}>
+          {screen === 'login' && (
+            <LoginScreen onLogin={handleLogin} />
+          )}
+          {screen === 'home' && client && (
+            <HomeScreen
+              client={client}
+              onNavigate={handleNavigate}
+            />
+          )}
+          {screen === 'send' && client && (
+            <SendScreen
+              client={client}
+              onBack={() => setScreen('home')}
+              initialToken={initialToken}
+            />
+          )}
+          {screen === 'mint' && client && (
+            <MintScreen
+              client={client}
+              onBack={() => setScreen('home')}
+            />
+          )}
+        </Box>
+      </Container>
+    </WalletActionModalProvider>
   );
 }
 
